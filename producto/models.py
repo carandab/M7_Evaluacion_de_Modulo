@@ -90,6 +90,7 @@ class ProductoEtiqueta(models.Model):
     
     # Campos adicionales de la relación
     fecha_asignacion = models.DateTimeField(auto_now_add=True)
+    # Campo de orden para prioridad de las etiquetas
     orden = models.PositiveIntegerField(
         default= 1,
         help_text="Orden de prioridad de la etiqueta (1 = más importante)"

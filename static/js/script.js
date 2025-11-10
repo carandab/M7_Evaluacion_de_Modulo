@@ -2,15 +2,22 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     
-    // Auto-cerrar alertas después de 5 segundos
+/*     // Auto-cerrar alertas después de 5 segundos
+    // NO auto-cerrar en páginas de eliminación
     const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
-    alerts.forEach(alert => {
-        setTimeout(() => {
-            const bsAlert = new bootstrap.Alert(alert);
-            bsAlert.close();
-        }, 5000);
-    });
+    const isDeletePage = window.location.pathname.includes('/eliminar/');
+    
+    if (!isDeletePage) {
+        alerts.forEach(alert => {
+            setTimeout(() => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }, 15000);
+        });
+    }
+ */
 
+    
     // Confirmación antes de eliminar
     const deleteButtons = document.querySelectorAll('.btn-delete, [data-confirm]');
     deleteButtons.forEach(button => {

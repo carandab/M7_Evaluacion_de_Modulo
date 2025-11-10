@@ -21,6 +21,7 @@ def lista_productos(request):
 
     productos = Producto.objects.select_related('categoria').prefetch_related('etiquetas')
     
+    # Filtros
     query = request.GET.get('q')
     categoria_id = request.GET.get('categoria')
     precio_min = request.GET.get('precio_min')
@@ -47,7 +48,7 @@ def lista_productos(request):
 def detalle_producto(request, id):
 
     producto = get_object_or_404(Producto, id=id)
-    return render(request, 'productos/detalle.html', {'producto': producto})
+    return render(request, 'producto/detalle.html', {'producto': producto})
 
 
 def crear_producto(request):
@@ -57,18 +58,25 @@ def crear_producto(request):
         detalles_form = DetallesProductoForm(request.POST)
         
         if producto_form.is_valid() and detalles_form.is_valid():
-            # Guardar detalles
-            detalles = detalles_form.save()
             
-            # Guardar producto
-            producto = producto_form.save(commit=False)
-            producto.detalles = detalles
-            producto.save()
+            # Guardar el Producto primero (para obtener su ID)
+            producto = producto_form.save()
             
-            # Guardar etiquetas usando el modelo through
+            # - Guardar Detalles solo si hay datos
+            # - Verifica si al menos uno de los campos tiene valor
+
+            if detalles_form.cleaned_data.get('peso') or detalles_form.cleaned_data.get('dimensiones'): 
+
+                detalles = detalles_form.save(commit=False)  # No guardar ahora
+                detalles.producto = producto  # Asignar el producto recién creado
+                detalles.save()  # Guardar los detalles
+            
+            # Guardar Etiquetas usando through 
+
             etiquetas_seleccionadas = producto_form.cleaned_data.get('etiquetas_seleccionadas')
+
             if etiquetas_seleccionadas:
-                for orden, etiqueta in enumerate(etiquetas_seleccionadas):
+                for orden, etiqueta in enumerate(etiquetas_seleccionadas, start=1):
                     ProductoEtiqueta.objects.create(
                         producto=producto,
                         etiqueta=etiqueta,
@@ -77,6 +85,10 @@ def crear_producto(request):
             
             messages.success(request, 'Producto creado exitosamente')
             return redirect('detalle_producto', id=producto.id)
+        
+        else:
+            # Mensaje de errores
+            messages.error(request, 'Por favor corrige los errores del formulario')
     else:
         producto_form = ProductoForm()
         detalles_form = DetallesProductoForm()
@@ -90,31 +102,66 @@ def crear_producto(request):
 def editar_producto(request, id):
 
     producto = get_object_or_404(Producto, id=id)
-    detalles = producto.detalles
+
+    # Manejo de excepciones para obtener detalles si existen
+
+    try:
+        detalles = producto.detalles
+
+    except DetallesProducto.DoesNotExist:   # Si detalles no existen, asignar None
+        detalles = None
     
     if request.method == 'POST':
+
         producto_form = ProductoForm(request.POST, instance=producto)
         
+        # Formulario de detalles (existente o nuevo)
         if detalles:
             detalles_form = DetallesProductoForm(request.POST, instance=detalles)
         else:
             detalles_form = DetallesProductoForm(request.POST)
         
+        # Formset de etiquetas
         etiquetas_formset = ProductoEtiquetaFormSet(request.POST, instance=producto)
         
         if producto_form.is_valid() and detalles_form.is_valid() and etiquetas_formset.is_valid():
-            if not detalles:
-                detalles = detalles_form.save()
-                producto.detalles = detalles
-            else:
-                detalles_form.save()
             
+            # Guardar producto
             producto_form.save()
-            etiquetas_formset.save()  # Guarda las relaciones con through
+            
+            # Guardar o crear detalles SOLO si hay datos
+            if detalles_form.cleaned_data.get('peso') or detalles_form.cleaned_data.get('dimensiones'):
+
+                if not detalles:
+
+                    # Crear nuevos detalles si no existen
+
+                    detalles = detalles_form.save(commit=False)
+                    detalles.producto = producto
+                    detalles.save()
+
+                else:
+
+                    # Actualizar detalles existentes
+                    detalles_form.save()
+
+            elif detalles:
+
+                # Si ya existían detalles pero ahora están vacíos, eliminarlos
+
+                if not detalles_form.cleaned_data.get('peso') and not detalles_form.cleaned_data.get('dimensiones'):
+                    detalles.delete()
+            
+            # Guardar etiquetas
+            etiquetas_formset.save()
             
             messages.success(request, 'Producto actualizado exitosamente')
             return redirect('detalle_producto', id=producto.id)
         
+
+        else:
+            messages.error(request, 'Por favor corrige los errores del formulario') # Mensaje de errores
+
     else:
         producto_form = ProductoForm(instance=producto)
         detalles_form = DetallesProductoForm(instance=detalles) if detalles else DetallesProductoForm()
@@ -127,13 +174,17 @@ def editar_producto(request, id):
         'etiquetas_formset': etiquetas_formset
     })
 
+
+
 def eliminar_producto(request, id):
 
     producto = get_object_or_404(Producto, id=id)
     
     if request.method == 'POST':
-        producto.delete()
-        messages.success(request, 'Producto eliminado exitosamente')
+
+        nombre_producto = producto.nombre
+        producto.delete()  # Esto también eliminará DetallesProducto por CASCADE definida en modelo
+        messages.success(request, f'Producto "{nombre_producto}" eliminado exitosamente')
         return redirect('lista_productos')
     
     return render(request, 'producto/eliminar.html', {'producto': producto})
