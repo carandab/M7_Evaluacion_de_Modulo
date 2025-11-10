@@ -2,11 +2,19 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from .models import Producto, DetallesProducto, ProductoEtiqueta
 from .forms import ProductoForm, DetallesProductoForm, ProductoEtiquetaFormSet
-
+from categorias.models import Categoria
+from etiquetas.models import Etiqueta
+from django.db.models import Q
 
 def index(request):
-    
-    return render(request, 'index.html')
+
+    context = {
+        'total_productos': Producto.objects.count(),
+        'total_categorias': Categoria.objects.count(),
+        'total_etiquetas': Etiqueta.objects.count(),
+    }
+
+    return render(request, 'index.html', context)
 
 
 def lista_productos(request):
@@ -17,6 +25,8 @@ def lista_productos(request):
     categoria_id = request.GET.get('categoria')
     precio_min = request.GET.get('precio_min')
     
+    categorias = Categoria.objects.all()
+
     if query:
         productos = productos.filter(
             Q(nombre__icontains=query) | Q(descripcion__icontains=query)
@@ -28,7 +38,10 @@ def lista_productos(request):
     if precio_min:
         productos = productos.filter(precio__gte=precio_min)
     
-    return render(request, 'productos/lista.html', {'productos': productos})
+    return render(request, 'producto/lista.html', {
+        'productos': productos,
+        'categorias': categorias
+    })
 
 
 def detalle_producto(request, id):
@@ -68,7 +81,7 @@ def crear_producto(request):
         producto_form = ProductoForm()
         detalles_form = DetallesProductoForm()
     
-    return render(request, 'productos/crear.html', {
+    return render(request, 'producto/crear.html', {
         'producto_form': producto_form,
         'detalles_form': detalles_form
     })
@@ -107,7 +120,7 @@ def editar_producto(request, id):
         detalles_form = DetallesProductoForm(instance=detalles) if detalles else DetallesProductoForm()
         etiquetas_formset = ProductoEtiquetaFormSet(instance=producto)
     
-    return render(request, 'productos/editar.html', {
+    return render(request, 'producto/editar.html', {
         'producto': producto,
         'producto_form': producto_form,
         'detalles_form': detalles_form,
@@ -123,4 +136,4 @@ def eliminar_producto(request, id):
         messages.success(request, 'Producto eliminado exitosamente')
         return redirect('lista_productos')
     
-    return render(request, 'productos/eliminar.html', {'producto': producto})
+    return render(request, 'producto/eliminar.html', {'producto': producto})
